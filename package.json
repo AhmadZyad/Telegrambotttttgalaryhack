@@ -1,4 +1,4 @@
-```json
+json
 {
   "name": "bot-control-panel",
   "version": "4.0.0",
@@ -9,4 +9,3 @@
     "mongoose": "^8.2.0"
   }
 }
-```
