@@ -1,0 +1,184 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>لوحة التحكم المحترفة 24/7 (دعم الوسائط)</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #121212; color: #fff; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 10px; }
+        input, button { padding: 10px; margin: 5px 0; width: 100%; border-radius: 5px; border: none; box-sizing: border-box;}
+        button { background-color: #0088cc; color: white; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #006699; }
+        .bot-card { background: #333; padding: 15px; margin: 10px 0; border-radius: 5px; border-right: 4px solid #0088cc; }
+        .history-box { background: #222; padding: 15px; margin-top: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto; font-size: 14px; line-height: 1.6;}
+        .hidden { display: none; }
+        hr { border-color: #444; margin: 20px 0; }
+        .msg-user { color: #4CAF50; font-weight: bold; }
+        .msg-bot { color: #0088cc; font-weight: bold; }
+        .delete-btn { width: auto; padding: 4px 8px; background: #dc3545; font-size: 12px; margin-right: 10px; border-radius: 3px; cursor: pointer;}
+        .media-preview { max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 5px; display: block; }
+        .gallery-item { width: 150px; height: 150px; object-fit: cover; border-radius: 8px; border: 2px solid #444;}
+    </style>
+</head>
+<body>
+
+<div class="container" id="login-section">
+    <h2>تسجيل الدخول</h2>
+    <input type="password" id="password" placeholder="أدخل كلمة المرور السريّة (الافتراضية: 123)">
+    <button onclick="login()">تسجيل الدخول</button>
+</div>
+
+<!-- لوحة التحكم الرئيسية -->
+<div class="container hidden" id="dashboard">
+    <h2>لوحة تحكم البوتات السحابية</h2>
+    
+    <div style="background: #2a2a2a; padding: 15px; border-radius: 8px;">
+        <h3>إضافة بوت جديد</h3>
+        <input type="text" id="newToken" placeholder="ضع توكن البوت هنا">
+        <button onclick="addBot()">إضافة البوت وربطه بالسيرفر</button>
+    </div>
+
+    <hr>
+    
+    <button onclick="openGallery('all')" style="background-color: #ff9800; margin-bottom: 10px;">🖼️ عرض كافة الصور والفيديوهات (لجميع البوتات)</button>
+
+    <h3>البوتات المحفوظة وصندوق الرسائل</h3>
+    <div id="botsList">جاري تحميل البيانات من قاعدة البيانات...</div>
+</div>
+
+<!-- معرض الصور والفيديوهات المخفي -->
+<div class="container hidden" id="media-gallery">
+    <h2>🖼️ معرض الوسائط</h2>
+    <button onclick="closeGallery()" style="background:#dc3545; width:auto; padding:8px 20px;">⬅️ العودة للوحة التحكم</button>
+    <div id="gallery-content" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:20px;"></div>
+</div>
+
+<script>
+    const MY_PASSWORD = "123";
+    let globalBotsData = []; 
+
+    async function login() {
+        if(document.getElementById('password').value === MY_PASSWORD) {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+            loadData();
+        } else alert('كلمة المرور خاطئة!');
+    }
+
+    async function loadData() {
+        try {
+            const res = await fetch('/api/get_data');
+            const data = await res.json();
+            if(data.success) {
+                globalBotsData = data.bots;
+                renderBots(data.bots);
+            }
+        } catch (e) { alert("حدث خطأ في تحميل السيرفر."); }
+    }
+
+    function renderBots(bots) {
+        const list = document.getElementById('botsList');
+        list.innerHTML = '';
+
+        bots.forEach((bot) => {
+            let historyHtml = `<div class="history-box">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong>صندوق الوارد والصادر:</strong>
+                    <button onclick="openGallery('${bot._id}')" style="width:auto; padding:5px 10px; background:#4CAF50;">مشاهدة وسائط هذا البوت فقط</button>
+                </div><br>`;
+                
+            if(bot.history && bot.history.length > 0) {
+                bot.history.forEach(msg => {
+                    let mediaContent = '';
+                    if (msg.mediaType === 'photo') {
+                        mediaContent = `<br><img src="/api/media?token=${bot.token}&fileId=${msg.fileId}" class="media-preview" alt="صورة">`;
+                    } else if (msg.mediaType === 'video') {
+                        mediaContent = `<br><video src="/api/media?token=${bot.token}&fileId=${msg.fileId}" class="media-preview" controls></video>`;
+                    }
+
+                    if(msg.type === 'user') {
+                        historyHtml += `<div style="margin-bottom:10px;"><span class="msg-user">📥 [من المستخدم ${msg.chatId}]:</span> ${msg.text} ${mediaContent}</div>`;
+                    } else {
+                        historyHtml += `<div style="margin-bottom:10px;"><span class="msg-bot">📤 [أنت للمستخدم ${msg.chatId}]:</span> ${msg.text} 
+                        <span class="delete-btn" onclick="delMsg('${bot.token}', '${msg.chatId}', ${msg.messageId})">حذف</span> ${mediaContent}</div>`;
+                    }
+                });
+            } else { historyHtml += 'لا توجد رسائل حالياً.'; }
+            historyHtml += '</div>';
+
+            list.innerHTML += `
+                <div class="bot-card">
+                    <h4>@${bot.username} (${bot.name})</h4>
+                    <input type="text" id="chatId-${bot._id}" placeholder="ايدي المستخدم للرد عليه (Chat ID)">
+                    <input type="text" id="text-${bot._id}" placeholder="اكتب رسالتك النصية هنا...">
+                    <button onclick="sendMsg('${bot.token}', '${bot._id}')">إرسال الرسالة</button>
+                    ${historyHtml}
+                </div>
+            `;
+        });
+    }
+
+    function openGallery(botId) {
+        document.getElementById('dashboard').classList.add('hidden');
+        document.getElementById('media-gallery').classList.remove('hidden');
+        const content = document.getElementById('gallery-content');
+        content.innerHTML = '';
+
+        let hasMedia = false;
+        globalBotsData.forEach(bot => {
+            if (botId === 'all' || bot._id === botId) {
+                bot.history.forEach(msg => {
+                    if (msg.mediaType === 'photo') {
+                        content.innerHTML += `<a href="/api/media?token=${bot.token}&fileId=${msg.fileId}" target="_blank"><img src="/api/media?token=${bot.token}&fileId=${msg.fileId}" class="gallery-item"></a>`;
+                        hasMedia = true;
+                    } else if (msg.mediaType === 'video') {
+                        content.innerHTML += `<video src="/api/media?token=${bot.token}&fileId=${msg.fileId}" class="gallery-item" controls></video>`;
+                        hasMedia = true;
+                    }
+                });
+            }
+        });
+        if(!hasMedia) content.innerHTML = '<p>لا توجد أي صور أو فيديوهات محفوظة حتى الآن.</p>';
+    }
+
+    function closeGallery() {
+        document.getElementById('media-gallery').classList.add('hidden');
+        document.getElementById('dashboard').classList.remove('hidden');
+    }
+
+    async function addBot() {
+        const token = document.getElementById('newToken').value.trim();
+        const domain = window.location.host; 
+        if(!token) return alert("يرجى إدخال التوكن");
+        
+        const res = await fetch('/api/add_bot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, domain }) });
+        const data = await res.json();
+        if(data.success) { 
+            alert("تم إضافة البوت بنجاح!");
+            document.getElementById('newToken').value = ''; 
+            loadData(); 
+        } else alert(data.error);
+    }
+
+    async function sendMsg(token, botId) {
+        const chatId = document.getElementById(`chatId-${botId}`).value;
+        const text = document.getElementById(`text-${botId}`).value;
+        if(!chatId || !text) return alert("أدخل النص والايدي");
+        
+        const res = await fetch('/api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, chatId, text }) });
+        const data = await res.json();
+        if(data.success) { document.getElementById(`text-${botId}`).value = ''; loadData(); }
+    }
+
+    async function delMsg(token, chatId, messageId) {
+        if(!confirm("حذف الرسالة للطرفين؟")) return;
+        const res = await fetch('/api/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, chatId, messageId }) });
+        const data = await res.json();
+        if(data.success) loadData(); else alert("تعذر الحذف");
+    }
+</script>
+</body>
+</html>
