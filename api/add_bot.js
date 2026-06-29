@@ -1,11 +1,12 @@
-javascript
 const axios = require('axios');
 const { connectDB, Bot } = require('./db');
 
-module.exports = async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+exports.handler = async function(event, context) {
+    if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
     
-    const { token, domain } = req.body;
+    const body = JSON.parse(event.body);
+    const { token, domain } = body;
+    
     try {
         const tgRes = await axios.get(`https://api.telegram.org/bot${token}/getMe`);
         const botInfo = tgRes.data.result;
@@ -14,7 +15,6 @@ module.exports = async function handler(req, res) {
         await axios.get(`https://api.telegram.org/bot${token}/setWebhook?url=${webhookUrl}`);
 
         await connectDB();
-        
         const newBot = await Bot.create({
             token: token,
             name: botInfo.first_name,
@@ -22,8 +22,8 @@ module.exports = async function handler(req, res) {
             history: [] 
         });
 
-        res.status(200).json({ success: true, bot: newBot });
+        return { statusCode: 200, body: JSON.stringify({ success: true, bot: newBot }) };
     } catch (error) {
-        res.status(400).json({ success: false, error: 'التوكن غير صحيح أو مضاف مسبقاً' });
+        return { statusCode: 400, body: JSON.stringify({ success: false, error: 'التوكن غير صحيح أو مضاف مسبقاً' }) };
     }
 }
